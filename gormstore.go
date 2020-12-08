@@ -70,16 +70,13 @@ type gormSession struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	ExpiresAt time.Time `sql:"index"`
-
-	tableName string `sql:"-"` // just for convenience instead of db.Table(...)
 }
 
 // Define a type for context keys so that they can't clash with anything else stored in context
 type contextKey string
 
 func (gs *gormSession) TableName() string {
-	log.Printf("TableName: %s\n", gs.tableName)
-	return gs.tableName
+	return defaultTableName
 }
 
 // New creates a new gormstore session
@@ -101,13 +98,11 @@ func NewOptions(db *gorm.DB, opts Options, keyPairs ...[]byte) *Store {
 	if st.opts.TableName == "" {
 		st.opts.TableName = defaultTableName
 	}
-	log.Printf("st.opts.TableName: %#+v\n", st.opts.TableName)
 
 	if !st.opts.SkipCreateTable {
-		st.db.AutoMigrate(&gormSession{tableName: st.opts.TableName})
+		asd := gormSession{}
+		st.db.AutoMigrate(asd)
 	}
-
-	log.Printf("st: %#+v\n", st)
 
 	return st
 }
@@ -130,7 +125,7 @@ func (st *Store) New(r *http.Request, name string) (*sessions.Session, error) {
 		if err := securecookie.DecodeMulti(name, cookie.Value, &session.ID, st.Codecs...); err != nil {
 			return session, nil
 		}
-		s := &gormSession{tableName: st.opts.TableName}
+		s := &gormSession{}
 		log.Printf("s: %#+v\n", s)
 		if err := st.db.Where("id = ? AND expires_at > ?", session.ID, time.Now()).First(s).Error; err != nil {
 			return session, nil
@@ -178,7 +173,6 @@ func (st *Store) Save(r *http.Request, w http.ResponseWriter, session *sessions.
 			CreatedAt: now,
 			UpdatedAt: now,
 			ExpiresAt: expire,
-			tableName: st.opts.TableName,
 		}
 		if err := st.db.Create(s).Error; err != nil {
 			return err
@@ -228,7 +222,7 @@ func (st *Store) MaxLength(l int) {
 
 // Cleanup deletes expired sessions
 func (st *Store) Cleanup() {
-	st.db.Delete(&gormSession{tableName: st.opts.TableName}, "expires_at <= ?", time.Now())
+	st.db.Delete(&gormSession{}, "expires_at <= ?", time.Now())
 }
 
 // PeriodicCleanup runs Cleanup every interval. Close quit channel to stop.

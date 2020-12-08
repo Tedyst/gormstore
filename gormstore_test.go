@@ -106,7 +106,7 @@ func match(t *testing.T, resp *httptest.ResponseRecorder, code int, body string)
 }
 
 func findSession(db *gorm.DB, store *Store, id string) *gormSession {
-	s := &gormSession{tableName: store.opts.TableName}
+	s := &gormSession{}
 	if errors.Is(db.Where("id = ?", id).First(s).Error, gorm.ErrRecordNotFound) {
 		return nil
 	}
@@ -229,41 +229,6 @@ func TestMaxLength(t *testing.T) {
 		http.Error(w, "", http.StatusOK)
 	}, nil)
 	match(t, r1, 200, "")
-}
-
-func TestTableName(t *testing.T) {
-	db := newDB()
-	store := NewOptions(db, Options{TableName: "abc"}, []byte("secret"))
-	countFn := makeCountHandler("session", store)
-
-	if !db.Migrator().HasTable(&gormSession{tableName: store.opts.TableName}) {
-		t.Error("Expected abc table created")
-	}
-
-	r1 := req(countFn, nil)
-	match(t, r1, 200, "1")
-	r2 := req(countFn, parseCookies(r1.Header().Get("Set-Cookie"))["session"])
-	match(t, r2, 200, "2")
-
-	id := r2.Header().Get("X-Session")
-	s := findSession(db, store, id)
-	s.ExpiresAt = time.Now().Add(-time.Duration(store.SessionOpts.MaxAge+1) * time.Second)
-	db.Save(s)
-
-	store.Cleanup()
-
-	if findSession(db, store, id) != nil {
-		t.Error("Expected session to be deleted")
-	}
-}
-
-func TestSkipCreateTable(t *testing.T) {
-	db := newDB()
-	store := NewOptions(db, Options{SkipCreateTable: true}, []byte("secret"))
-
-	if db.Migrator().HasTable(&gormSession{tableName: store.opts.TableName}) {
-		t.Error("Expected no table created")
-	}
 }
 
 func TestMultiSessions(t *testing.T) {
