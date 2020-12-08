@@ -34,7 +34,6 @@ package gormstore
 
 import (
 	"encoding/base32"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -126,7 +125,6 @@ func (st *Store) New(r *http.Request, name string) (*sessions.Session, error) {
 			return session, nil
 		}
 		s := &gormSession{}
-		log.Printf("s: %#+v\n", s)
 		if err := st.db.Where("id = ? AND expires_at > ?", session.ID, time.Now()).First(s).Error; err != nil {
 			return session, nil
 		}
